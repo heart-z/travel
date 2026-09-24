@@ -1,19 +1,28 @@
 <script setup lang="ts">
-import {computed} from 'vue';
+import {computed,ref} from 'vue';
+import {onShow} from '@dcloudio/uni-app';
 import {state,go} from '../../state';
 import {today,dateRange} from '../../domain/dates';
+import {tripStatus} from '../../domain/trip-status';
+import {tripTheme} from '../../domain/trip-theme';
+import type {Trip} from '../../domain/types';
 import StatusBanner from '../../components/StatusBanner.vue';
 const trips=computed(()=>state.data.trips.filter(t=>!t.archived).sort((a,b)=>a.startDate.localeCompare(b.startDate)));
-const status=(start:string,end:string)=>today()<start?'即将出发':today()>end?'旅行回忆':'正在旅行';
-const groups=computed(()=>['正在旅行','即将出发','旅行回忆'].map(label=>({label,trips:trips.value.filter(t=>status(t.startDate,t.endDate)===label)})).filter(g=>g.trips.length));
+const currentDate=ref(today());
+onShow(()=>{currentDate.value=today();});
+const phase=(trip:Trip)=>tripStatus(trip.startDate,trip.endDate,currentDate.value).phase;
+const heroTrip=computed(()=>trips.value.find(t=>phase(t)==='active')||trips.value.find(t=>phase(t)==='upcoming')||trips.value[trips.value.length-1]);
+const heroStatus=computed(()=>heroTrip.value?tripStatus(heroTrip.value.startDate,heroTrip.value.endDate,currentDate.value):undefined);
+const groups=computed(()=>['active','upcoming','finished'].map((kind,index)=>({label:['正在旅行','接下来的旅行','旅行回忆'][index],trips:trips.value.filter(t=>t.id!==heroTrip.value?.id&&phase(t)===kind)})).filter(g=>g.trips.length));
 </script>
 <template>
 <view class="screen trips-home">
  <view class="home-top"><view class="brand-mark">行</view><view class="home-brand"><view>行间旅行</view><text>把想去的地方，排成旅程</text></view></view>
- <view class="home-heading"><view><view class="home-title">我的旅行</view><text class="home-count">{{trips.length}} 段旅程</text></view><button class="primary home-add" :disabled="state.readOnly||!state.ready" @click="go('trip-edit')">＋ 新建</button></view>
+ <view class="home-heading"><view><view class="home-title">我的旅行</view><text class="home-count">{{trips.length}} 段旅程，慢慢去看</text></view><button class="home-add" :disabled="state.readOnly||!state.ready" aria-label="新建旅行" @click="go('trip-edit')">＋</button></view>
  <StatusBanner/>
  <view v-if="state.ready&&!trips.length" class="card home-empty"><view>从一段新旅程开始</view><text>先写下日期和目的地，其他安排可以慢慢补上。</text><button class="primary" :disabled="state.readOnly" @click="go('trip-edit')">创建旅行</button></view>
- <view v-for="group in groups" :key="group.label" class="trip-group"><view class="group-label">{{group.label}}</view><button v-for="trip in group.trips" :key="trip.id" class="home-trip" :aria-label="`打开${trip.title}`" @click="go('itinerary',{id:trip.id})"><view class="trip-topline"><text class="trip-destination">{{trip.city}}</text><text class="trip-date">{{trip.startDate.slice(5).replace('-','.')}} — {{trip.endDate.slice(5).replace('-','.')}}</text></view><view class="trip-name"><text>{{trip.title}}</text><text class="trip-arrow">›</text></view><view class="trip-facts"><text>{{dateRange(trip.startDate,trip.endDate).length}} 天 · {{trip.items.length}} 项安排</text><text>住宿 {{trip.stays?.filter(s=>s.kind!=='train').length||0}} 处 · 行李 {{trip.packing?.filter(p=>p.packed).length||0}}/{{trip.packing?.length||0}}</text></view></button></view>
+ <button v-if="heroTrip" class="home-trip hero-trip" :class="'theme-'+tripTheme(heroTrip.city)" :aria-label="`打开${heroTrip.title}`" @click="go('itinerary',{id:heroTrip.id})"><view class="hero-landscape"><view class="hero-sun"/><view class="hero-hill hero-hill-back"/><view class="hero-hill hero-hill-front"/></view><view class="hero-content"><text class="hero-place">{{heroTrip.city}}</text><view class="hero-title">{{heroTrip.title}}</view><view class="hero-meta">{{heroTrip.startDate.slice(5).replace('-','.')}} — {{heroTrip.endDate.slice(5).replace('-','.')}} · {{dateRange(heroTrip.startDate,heroTrip.endDate).length}} 天</view><view class="hero-bottom"><text>{{heroStatus?.label}}</text><text class="hero-open">查看行程 ↗</text></view></view></button>
+ <view v-for="group in groups" :key="group.label" class="trip-group"><view class="group-label">{{group.label}}</view><view class="trip-group-list"><button v-for="trip in group.trips" :key="trip.id" class="trip-row" :aria-label="`打开${trip.title}`" @click="go('itinerary',{id:trip.id})"><view class="trip-row-copy"><view class="trip-row-name">{{trip.city||trip.title}}</view><text>{{trip.startDate.slice(5).replace('-','.')}} — {{trip.endDate.slice(5).replace('-','.')}} · {{dateRange(trip.startDate,trip.endDate).length}} 天</text></view><text class="trip-row-arrow">›</text></button></view></view>
 </view>
 </template>
 <style scoped>

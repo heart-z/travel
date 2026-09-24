@@ -62,6 +62,7 @@ onBeforeUnmount(()=>{document.removeEventListener('mouseup',endSheetDrag);docume
 // #endif
 const id=ref(''),day=ref(''),selected=ref(''),mode=ref<'driving'|'walking'>('driving');
 const legs=ref<Leg[]>([]),routeError=ref(''),routing=ref(false),expanded=ref<string[]>([]);
+const manageItemId=ref('');
 const expandedTransits=ref<string[]>([]);
 function toggleTransit(key:string){expandedTransits.value=expandedTransits.value.includes(key)?expandedTransits.value.filter(x=>x!==key):[key];}
 const overview=ref(false),layout=ref<'map'|'split'|'list'>('map'),listAnchor=ref(''),selectionToken=ref(0);
@@ -89,6 +90,8 @@ function chooseDay(value:string){const hadMap=mapAvailable.value;overview.value=
 function showOverview(){overview.value=true;selected.value='';cardOpen.value=false;void resetList();}
 function focusItem(item:Item){if(!item.place){layout.value='list';expanded.value=item.note?[item.id]:[];return;}if(layout.value==='list')layout.value='split';void selectStop(item.id);}
 function toggleDetails(itemId:string){expanded.value=expanded.value.includes(itemId)?expanded.value.filter(id=>id!==itemId):[...expanded.value,itemId];}
+function toggleManage(itemId:string){manageItemId.value=manageItemId.value===itemId?'':itemId;}
+async function moveStopToDay(item:Item,index:number){const date=days.value[index];if(!trip.value||locked.value||!date||date===day.value)return;try{await saveTrip(movePointToDayWithTransit(trip.value,item.id,date));manageItemId.value='';chooseDay(date);}catch(error){notify(error);}}
 let request=0;
 const modeValues:TransportMode[]=['driving','walking','train','flight','bus','manual'];
 const modeLabels=['驾车','步行','铁路','飞机','大巴','手动'];
@@ -137,7 +140,7 @@ async function setTravelMinutes(item:Item,e:any){if(!trip.value||locked.value)re
 async function setTransitMinutes(item:Item,e:any){const raw=String(e.detail.value??'').trim(),value=Number(raw);if(raw===''||!Number.isInteger(value)||value<0||value>2880){notify('交通耗时请填 0–2880 分钟');return;}if(value!==item.duration)await updateItem(item,{duration:value});}
 onLoad(async q=>{id.value=q?.id||'';if(q?.mode==='walking'||q?.mode==='driving')mode.value=q.mode;await initialize();day.value=q?.date||trip.value?.startDate||'';});
 watch(days,value=>{if(value.length&&!value.includes(day.value))day.value=value[0];});
-watch(day,()=>{selected.value='';expanded.value=[];expandedTransits.value=[];cardOpen.value=false;});
+watch(day,()=>{selected.value='';expanded.value=[];expandedTransits.value=[];manageItemId.value='';cardOpen.value=false;});
 watch(layout,()=>{cardOpen.value=false;});
 watch(()=>JSON.stringify([items.value.map(i=>[i.id,i.place,i.travelMode]),mode.value,trip.value?.transports]),()=>{void loadRoutes();});
 async function loadRoutes(){const token=++request;legs.value=[];routeError.value='';routing.value=false;routing.value=true;try{const result=await routes(routeStops.value,mode.value,trip.value?.transports);if(token===request)legs.value=result;}catch(e){if(token===request)routeError.value=e instanceof Error?e.message:'路线暂不可用';}finally{if(token===request)routing.value=false;}}
@@ -203,13 +206,13 @@ function arrivalText(t:Transport){const date=t.arrival.slice(0,10);const dates=d
            <text class="stop-number">{{entry.item.completed?'✓':entry.number}}</text>
            <view class="stop-copy"><view class="stop-title">{{pointLabel(entry.item)}}</view><view class="stop-meta"><text class="time-value">{{timelineLabel(timeline[entry.sourceIndex])}}</text><text> · {{entry.item.kind}}</text><text> · 停留 {{entry.item.duration}} 分</text></view></view>
           </view>
-          <view class="stop-corner-actions"><button :disabled="locked" aria-label="编辑地点" @click.stop="go('import',{id,date:day,item:entry.item.id})"><image src="/static/ui/edit.svg"/></button><button class="stop-remove" :disabled="locked" aria-label="移除地点" @click.stop="remove(entry.item)">×</button></view>
+          <view class="stop-corner-actions"><button class="stop-more" :aria-label="`更多操作：${pointLabel(entry.item)}`" :aria-expanded="manageItemId===entry.item.id" @click.stop="toggleManage(entry.item.id)">···</button></view>
           <view v-if="timeline[entry.sourceIndex]?.conflictMinutes" class="stop-alert">时间冲突 {{timeline[entry.sourceIndex].conflictMinutes}} 分钟</view>
           <view class="stop-quick-actions">
            <button @click="openGuides(entry.item.id)"><image src="/static/ui/guide.svg"/>攻略{{relatedGuides(entry.item.id).length?` ${relatedGuides(entry.item.id).length}`:' +'}}</button>
            <button @click="entry.item.note?toggleDetails(entry.item.id):go('import',{id,date:day,item:entry.item.id})"><image src="/static/ui/note.svg"/>{{entry.item.note?'备注':'加备注'}}</button>
-           <button @click="bindLocation(entry.item.id)"><image src="/static/ui/pin.svg"/>{{entry.item.place?'位置':'补定位'}}</button>
           </view>
+          <view v-if="manageItemId===entry.item.id" class="stop-manage-actions"><button :disabled="locked" @click="go('import',{id,date:day,item:entry.item.id})">编辑地点</button><button :disabled="locked" @click="bindLocation(entry.item.id)">{{entry.item.place?'查看位置':'补充位置'}}</button><picker v-if="days.length>1" :range="days" :value="days.indexOf(day)" :disabled="locked" @change="moveStopToDay(entry.item,Number($event.detail.value))"><view class="manage-day">移到其他天</view></picker><button class="manage-remove" :disabled="locked" @click="remove(entry.item)">移除</button></view>
           <view v-if="expanded.includes(entry.item.id)&&presentationNote(entry.item.note)" class="stop-details"><view class="stop-note">{{presentationNote(entry.item.note)}}</view></view>
          </view>
         </view>
