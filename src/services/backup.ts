@@ -1,0 +1,4 @@
+import { validateData } from './repository';import { clone,type AppData } from '../domain/types';
+export function exportBackup(data:AppData):string {validateData(data);return JSON.stringify({format:'xingjian-backup',schema:2,exportedAt:new Date().toISOString(),data:clone(data)},null,2);}
+export function parseBackup(text:string):AppData {const backup=JSON.parse(text);if(backup.format!=='xingjian-backup'||![1,2].includes(backup.schema))throw new Error('不支持的备份格式');validateData(backup.data);return clone(backup.data);}
+export function mergeBackup(current:AppData,incoming:AppData):AppData {validateData(incoming);const result=clone(current);const ids=new Set(result.trips.map(t=>t.id));for(const trip of incoming.trips)if(!ids.has(trip.id)){result.trips.push(clone(trip));ids.add(trip.id);}validateData(result);return result;}

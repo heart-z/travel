@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.env.local
+.env.*.local
+project.private.config.json
+*.log
+.preview/
+server/.env
+server/data/
+web-collab/data/
+web-collab/docs/
+docs/
+HANDOFF.md
+scripts/build-notion-aershan.cjs

@@ -1,0 +1,9 @@
+<script setup lang="ts">
+const props=withDefaults(defineProps<{id:string;date?:string;active:'itinerary'|'map'|'resources'|'packing'|'ledger'|'guides';reserveSpace?:boolean}>(),{reserveSpace:true});
+const tabs=[{id:'itinerary',label:'规划',icon:'plan'},{id:'resources',label:'预订',icon:'hotel'},{id:'guides',label:'攻略',icon:'guide'},{id:'ledger',label:'账本',icon:'wallet'},{id:'packing',label:'准备',icon:'bag'}];
+const current=(id:string)=>props.active===id||(props.active==='map'&&id==='itinerary');
+function open(page:string){if(page===props.active)return;uni.redirectTo({url:`/pages/${page}/index?id=${encodeURIComponent(props.id)}${props.date?'&date='+encodeURIComponent(props.date):''}`});}
+</script>
+<template><view v-if="reserveSpace" class="trip-nav-space"/><view class="trip-nav"><button v-for="tab in tabs" :key="tab.id" :class="{active:current(tab.id)}" @click="open(tab.id)"><image :src="'/static/ui/'+tab.icon+(current(tab.id)?'-active':'')+'.svg'"/><text>{{tab.label}}</text></button></view></template>
+<style scoped>.trip-nav-space{height:80px}.trip-nav{position:fixed;z-index:1000;left:0;right:0;bottom:0;display:flex;gap:8px;justify-content:center;padding:7px 16px calc(8px + env(safe-area-inset-bottom));background:#fffffffa;border-top:1px solid #e8eef5}.trip-nav button{flex:1;max-width:170px;margin:0;padding:7px 4px;min-height:54px;background:transparent;color:#8190a4;font-size:11px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-weight:500}.trip-nav image{width:21px;height:21px}.trip-nav button.active{background:#edf4ff;color:var(--brand);font-weight:650}@media(max-height:520px){.trip-nav{padding:4px 16px}.trip-nav button{min-height:50px;padding:3px}.trip-nav-space{height:60px}}</style>
+<style scoped src="../styles/nav-ios.css"></style>

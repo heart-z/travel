@@ -1,0 +1,100 @@
+{
+  "pages": [
+    {
+      "path": "pages/trips/index",
+      "style": {
+        "navigationBarTitleText": "行间 · 旅行手账"
+      }
+    },
+    {
+      "path": "pages/guides/index",
+      "style": {"navigationBarTitleText":"旅行攻略"}
+    },
+    {
+      "path": "pages/trip-edit/index",
+      "style": {
+        "navigationBarTitleText": "安排一场旅行"
+      }
+    },
+    {
+      "path": "pages/itinerary/index",
+      "style": {
+        "navigationBarTitleText": "旅行规划",
+        "disableScroll": true
+      }
+    },
+    {
+      "path": "pages/resources/index",
+      "style": {
+        "navigationBarTitleText": "住宿与交通"
+      }
+    },
+    {
+      "path": "pages/packing/index",
+      "style": {
+        "navigationBarTitleText": "行李与衣物"
+      }
+    },
+    {
+      "path": "pages/import/index",
+      "style": {
+        "navigationBarTitleText": "添加地点与计划"
+      }
+    },
+    {
+      "path": "pages/ledger/index",
+      "style": {
+        "navigationBarTitleText": "旅行账本"
+      }
+    },
+    {
+      "path": "pages/expense/index",
+      "style": {
+        "navigationBarTitleText": "记一笔"
+      }
+    },
+    {
+      "path": "pages/calendar/index",
+      "style": {
+        "navigationBarTitleText": "旅行日历"
+      }
+    },
+    {
+      "path": "pages/settings/index",
+      "style": {
+        "navigationBarTitleText": "我的手账"
+      }
+    },
+    {
+      "path": "pages/map/index",
+      "style": {
+        "navigationBarTitleText": "当日地图"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundColor": "#f5f7fb"
+  },
+  "tabBar": {
+    "color": "#8995a7",
+    "selectedColor": "#367be7",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/trips/index",
+        "text": "旅行"
+      },
+      {
+        "pagePath": "pages/calendar/index",
+        "text": "日历"
+      },
+      {
+        "pagePath": "pages/settings/index",
+        "text": "我的"
+      }
+    ]
+  }
+}

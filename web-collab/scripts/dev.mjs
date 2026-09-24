@@ -1,0 +1,2 @@
+import {spawn} from 'node:child_process';
+const args=process.argv.slice(2);const api=spawn(process.execPath,['--experimental-strip-types','server/main.ts'],{stdio:'inherit',env:process.env});const vite=spawn(process.execPath,['node_modules/vite/bin/vite.js',...args],{stdio:'inherit'});const stop=()=>{api.kill();vite.kill()};process.on('SIGINT',stop);process.on('SIGTERM',stop);api.on('exit',()=>vite.kill());vite.on('exit',()=>api.kill());

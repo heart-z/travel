@@ -1,0 +1,15 @@
+page{--brand:#3477dc;--ink:#243449;--ink-muted:#6d7c90;--surface-muted:#eef4fc;--line:#e7edf4;background:#f7f8fc}
+page button{transition:transform 210ms cubic-bezier(.2,.8,.2,1),background-color 160ms ease,box-shadow 200ms ease,opacity 160ms ease}
+page button:active{filter:none;transform:scale(.975)}
+page button[disabled]:active{transform:none}
+.card{border-color:#e9eef5;border-radius:20px;box-shadow:0 7px 24px #23405d08}
+.primary{box-shadow:0 4px 12px #367be724}
+.primary:active{box-shadow:0 2px 7px #367be719}
+.secondary{background:#eef4fc}
+.field{border-color:#e4eaf2;border-radius:13px}
+.field:focus{border-color:#9dbdef}
+.notice{background:#f0f4fa;color:#66798f}
+.eyebrow{letter-spacing:1.3px}
+/* #ifdef H5 */
+@media(prefers-reduced-motion:reduce){page button,.card,.primary{transition:none!important;animation:none!important}page button:active{transform:none}}
+/* #endif */
