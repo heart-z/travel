@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {computed,ref} from 'vue';
 import {onShow} from '@dcloudio/uni-app';
-import {state,go} from '../../state';
+import {state,go,refreshSharedTrips} from '../../state';
 import {today,dateRange} from '../../domain/dates';
 import {tripStatus} from '../../domain/trip-status';
 import {tripTheme} from '../../domain/trip-theme';
@@ -9,7 +9,7 @@ import type {Trip} from '../../domain/types';
 import StatusBanner from '../../components/StatusBanner.vue';
 const trips=computed(()=>state.data.trips.filter(t=>!t.archived).sort((a,b)=>a.startDate.localeCompare(b.startDate)));
 const currentDate=ref(today());
-onShow(()=>{currentDate.value=today();});
+onShow(()=>{currentDate.value=today();if(state.mode==='cloud')void refreshSharedTrips().catch(()=>{});});
 const phase=(trip:Trip)=>tripStatus(trip.startDate,trip.endDate,currentDate.value).phase;
 const heroTrip=computed(()=>trips.value.find(t=>phase(t)==='active')||trips.value.find(t=>phase(t)==='upcoming')||trips.value[trips.value.length-1]);
 const heroStatus=computed(()=>heroTrip.value?tripStatus(heroTrip.value.startDate,heroTrip.value.endDate,currentDate.value):undefined);

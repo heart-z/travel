@@ -2,7 +2,7 @@
 import {computed,ref,reactive} from 'vue';
 import {onLoad} from '@dcloudio/uni-app';
 import {searchCity,saveDayCity} from '../../domain/resources';
-import {initialize,findTrip,state,saveTrip,notify} from '../../state';
+import {initialize,findTrip,state,saveTrip,notify,canEditTrip} from '../../state';
 import {dateRange} from '../../domain/dates';
 import {parsePlaces,importItems} from '../../domain/itinerary';
 import {pointLabel,presentationNote} from '../../domain/planner-presentation';
@@ -26,7 +26,7 @@ onLoad(async q=>{
  const item=trip.value?.items.find(i=>i.id===itemId.value);
  if(item){const name=pointLabel(item);text.value=name;Object.assign(form,{time:item.time,duration:String(item.duration),note:presentationNote(item.note),kind:item.kind});drafts.value=[{date:item.date,name,choices:item.place?[item.place]:[],place:item.place,include:true,manualSelection:!!item.place}];}
 });
-async function rememberCity(){if(!trip.value||state.readOnly||state.busy||busy.value)return;try{await saveTrip(saveDayCity(trip.value,date.value,city.value));notify('已保存当日搜索城市');}catch(e){notify(e);}}
+async function rememberCity(){if(!trip.value||!canEditTrip(id.value)||state.busy||busy.value)return;try{await saveTrip(saveDayCity(trip.value,date.value,city.value));notify('已保存当日搜索城市');}catch(e){notify(e);}}
 function invalidate(){drafts.value=[];requestId.value=uid();error.value='';}
 function nameInput(event:any){text.value=String(event.detail.value||'');if(drafts.value[0]?.manualSelection&&!batch.value){drafts.value[0].name=text.value.trim();requestId.value=uid();error.value='';}else invalidate();}
 function makeDraft(name:string):Draft{const choices=trip.value?savedPlaceCandidates(trip.value,name,date.value):[];return {date:date.value,name,choices,place:choices.length===1?choices[0]:undefined,include:true};}
@@ -51,7 +51,7 @@ function toggle(draft:Draft,event:any){draft.include=event.detail.value;}
 function clearLocation(draft:Draft){draft.place=undefined;draft.manualSelection=false;}
 function chooseOnMap(draft?:Draft){
  // #ifdef MP-WEIXIN
- if(state.readOnly||state.busy)return;
+ if(!canEditTrip(id.value)||state.busy)return;
  let target=draft||ensureSingleDraft();
  if(!target){target={date:date.value,name:'',choices:[],include:true};drafts.value=[target];}
  const anchor=target.place||trip.value?.items.filter(item=>item.date===target!.date&&item.place).sort((a,b)=>b.order-a.order)[0]?.place;
@@ -91,12 +91,12 @@ async function save(){
  <text class="eyebrow">PLACES TO GO</text>
  <view class="title">{{itemId?'把计划写仔细':batch?'想去的地方，一起放进来。':'下一站，去哪里？'}}</view>
  <view class="subtitle">{{date}} · {{trip?.title}}</view>
- <template v-if="cloudEnabled()"><text class="label">搜索城市</text><input class="field" v-model="city" :disabled="busy" maxlength="80" placeholder="填写城市以减少同名地点" @input="invalidate"/><button class="text-button small" :disabled="busy||state.busy||state.readOnly||!city.trim()" @click="rememberCity">记住当日城市</button></template>
+ <template v-if="cloudEnabled()"><text class="label">搜索城市</text><input class="field" v-model="city" :disabled="busy" maxlength="80" placeholder="填写城市以减少同名地点" @input="invalidate"/><button class="text-button small" :disabled="busy||state.busy||!canEditTrip(id)||!city.trim()" @click="rememberCity">记住当日城市</button></template>
  <text class="label">{{batch?'每行一个地点，也支持逗号分隔':'地点或计划名称'}}</text>
  <textarea v-if="batch" class="field field-text" v-model="text" maxlength="2000" placeholder="甲秀楼&#10;青岩古镇&#10;贵阳北站" @input="invalidate"/>
  <input v-else class="field" v-model="text" maxlength="120" placeholder="搜索地点，或记录一项计划" @input="nameInput"/>
  <!-- #ifdef MP-WEIXIN -->
- <button v-if="!batch" class="map-select-button" :disabled="busy||state.busy||state.readOnly" @click="chooseOnMap()"><text>⌖</text>{{selectedPlace?'更换地图地点':'在微信地图选地点'}}</button>
+ <button v-if="!batch" class="map-select-button" :disabled="busy||state.busy||!canEditTrip(id)" @click="chooseOnMap()"><text>⌖</text>{{selectedPlace?'更换地图地点':'在微信地图选地点'}}</button>
  <!-- #endif -->
  <view v-if="selectedPlace" class="chosen-place"><view><text class="chosen-title">{{selectedPlace.name}}</text><text class="chosen-address">{{selectedPlace.address||'已保存地图坐标'}}</text></view><button aria-label="清除已选位置" @click="clearLocation(drafts[0])">×</button></view>
  <view v-if="!batch&&drafts[0]?.choices.length>1" class="candidate-picker"><picker :range="['不关联位置',...drafts[0].choices.map(p=>p.name+' · '+p.address)]" :value="drafts[0].place?drafts[0].choices.findIndex(p=>p.id===drafts[0].place!.id)+1:0" @change="choose(drafts[0],Number($event.detail.value))"><view>发现 {{drafts[0].choices.length}} 个同名地点，选择一个 ▾</view></picker></view>
@@ -105,7 +105,7 @@ async function save(){
  <view v-if="error" class="notice error">{{error}}。仍可保存为待补位置的计划。</view>
  <view v-if="batch" v-for="(draft,index) in drafts" :key="index" class="card section" style="margin-top:12px"><view class="row"><text>{{index+1}}. {{draft.name}}</text><switch :checked="draft.include" color="#367be7" style="transform:scale(.75)" @change="toggle(draft,$event)"/></view><picker :range="['暂不关联位置',...draft.choices.map(p=>p.name+' · '+p.address)]" :value="draft.place?draft.choices.findIndex(p=>p.id===draft.place!.id)+1:0" @change="choose(draft,Number($event.detail.value))"><view class="subtitle" style="padding-top:10px">{{draft.place?draft.place.name+' · '+draft.place.address:draft.choices.length?'有 '+draft.choices.length+' 个候选，请点击选择':'位置待补充'}} ▾</view></picker><!-- #ifdef MP-WEIXIN --><button class="text-button small" @click="chooseOnMap(draft)">在微信地图选点</button><!-- #endif --><picker :range="days" :value="days.indexOf(draft.date)" @change="draft.date=days[Number($event.detail.value)]"><view class="badge section" style="margin-top:12px">安排到 {{draft.date}} ▾</view></picker></view>
  <template v-if="!batch"><view class="two-col"><view><text class="label">开始时间（可留空）</text><picker mode="time" :value="form.time||'09:00'" @change="form.time=$event.detail.value"><view class="field field-text">{{form.time||'时间待定'}} ▾</view></picker><text v-if="form.time" class="link subtitle" @click="form.time=''">清空时间</text></view><view><text class="label">{{form.kind==='交通'?'交通耗时（分钟）':'停留时长（分钟）'}}</text><input class="field" type="number" v-model="form.duration"/></view></view><text class="label">类型</text><view class="pill-row"><text v-for="kind in kinds" :key="kind" class="pill" :class="{active:form.kind===kind}" @click="form.kind=kind">{{kind}}</text></view><text class="label">备注</text><textarea class="field field-text" v-model="form.note" maxlength="2000" placeholder="门票、预约信息，或者想吃的那家店…"/></template>
- <button class="primary section" :disabled="busy||state.busy||state.readOnly||!state.ready||(!text.trim()&&!drafts.length)" :loading="state.busy" @click="save">{{itemId?'保存修改':'确认加入行程'}}</button>
+ <button class="primary section" :disabled="busy||state.busy||!canEditTrip(id)||!state.ready||(!text.trim()&&!drafts.length)" :loading="state.busy" @click="save">{{itemId?'保存修改':'确认加入行程'}}</button>
 </view>
 </template>
 

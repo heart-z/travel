@@ -24,6 +24,10 @@
       }
     },
     {
+      "path": "pages/share/index",
+      "style": {"navigationBarTitleText":"分享旅行"}
+    },
+    {
       "path": "pages/resources/index",
       "style": {
         "navigationBarTitleText": "住宿与交通"

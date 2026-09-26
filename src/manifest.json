@@ -1,5 +1,5 @@
 {
-  "name":"行间旅行", "appid":"", "description":"把旅行写进日常", "versionName":"0.1.0", "versionCode":"100",
+  "name":"行间旅行", "appid":"", "description":"把旅行写进日常", "versionName":"0.2.0", "versionCode":"200",
   "vueVersion":"3", "transformPx":false, "uniStatistics":{"enable":false},
   "h5":{"title":"行间 · 旅行手账","router":{"mode":"hash"}},
   "mp-weixin":{"appid":"wx593045edca3d054d","lazyCodeLoading":"requiredComponents","setting":{"urlCheck":true,"es6":true,"minified":true},"usingComponents":true,"permission":{"scope.userLocation":{"desc":"用于在微信地图中选择旅行地点并保存到行程"}}}

@@ -2,13 +2,13 @@
 import {computed,reactive,ref} from 'vue';
 import {onLoad} from '@dcloudio/uni-app';
 import TripNav from '../../components/TripNav.vue';
-import {findTrip,initialize,state,saveTrip,notify,confirm,message} from '../../state';
+import {findTrip,initialize,state,saveTrip,notify,confirm,message,canEditTrip} from '../../state';
 import {clone,uid,type Guide} from '../../domain/types';
 import {dateRange} from '../../domain/dates';
 import {guideCategories,guideMatches,extractGuideUrl,saveGuide,removeGuide} from '../../domain/guides';
 const id=ref(''),date=ref(''),item=ref(''),selected=ref(''),expanded=ref(''),search=ref(''),category=ref('*'),showAll=ref(false),editing=ref(false),error=ref('');
 const trip=computed(()=>findTrip(id.value));
-const locked=computed(()=>state.busy||state.readOnly||!state.ready);
+const locked=computed(()=>state.busy||!canEditTrip(id.value)||!state.ready);
 const dates=computed(()=>trip.value?dateRange(trip.value.startDate,trip.value.endDate):[]);
 const items=computed(()=>[...(trip.value?.items||[])].sort((a,b)=>a.date.localeCompare(b.date)||a.order-b.order));
 const all=computed(()=>trip.value?.guides||[]);
@@ -31,7 +31,7 @@ function toggleDetails(key:string){expanded.value=expanded.value===key?'':key;}
 <template>
 <view v-if="trip" class="screen guides-screen">
  <text class="eyebrow">SAVED FOR YOUR JOURNEY</text><view class="title">旅行攻略</view><view class="subtitle">{{trip.title}} · {{all.length}} 条收藏与备忘</view>
- <view v-if="state.readOnly" class="notice">当前为只读缓存，重新连接后可修改攻略。</view>
+ <view v-if="!canEditTrip(id)" class="notice">当前只能查看攻略；获得编辑权限后即可一起整理。</view>
  <view v-if="editing" class="card section">
   <view class="row"><text class="section-title">{{form.id?'编辑攻略':'添加攻略'}}</text><button class="text-button small" :disabled="state.busy" @click="editing=false">取消</button></view>
   <label for="guide-title" class="label">标题</label><input id="guide-title" v-model="form.title" class="field" :disabled="locked" maxlength="120" placeholder="例如：阿尔山游玩顺序与避坑"/>

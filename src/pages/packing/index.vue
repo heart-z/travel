@@ -3,7 +3,7 @@ import TripNav from '../../components/TripNav.vue';
 import WeatherCard from '../../components/WeatherCard.vue';
 import {computed,reactive,ref} from 'vue';
 import {onLoad} from '@dcloudio/uni-app';
-import {findTrip,initialize,state,saveTrip,notify,confirm,message} from '../../state';
+import {findTrip,initialize,state,saveTrip,notify,confirm,message,canEditTrip} from '../../state';
 import {clone,uid,type PackingItem,type PackingCategory} from '../../domain/types';
 import {packingCategories,packingTemplates,savePacking,addPackingTemplate,clothingSuggestions,type PackingDraft} from '../../domain/packing';
 import {dateRange} from '../../domain/dates';
@@ -21,7 +21,7 @@ const weatherDates=computed(()=>trip.value?dateRange(trip.value.startDate,trip.v
 const weatherPlaces=computed(()=>trip.value?.items.filter(i=>i.date===date.value).flatMap(i=>i.place?[i.place]:[])||[]);
 const tripDays=computed(()=>trip.value?dateRange(trip.value.startDate,trip.value.endDate).length:1);
 const trip=computed(()=>findTrip(id.value));
-const locked=computed(()=>state.busy||state.readOnly||!state.ready);
+const locked=computed(()=>state.busy||!canEditTrip(id.value)||!state.ready);
 const all=computed(()=>trip.value?.packing||[]);
 const packed=computed(()=>all.value.filter(p=>p.packed).length);
 const percent=computed(()=>all.value.length?Math.round(packed.value/all.value.length*100):0);
@@ -49,7 +49,7 @@ async function applyTemplate(){if(locked.value||!trip.value)return;error.value='
 <template>
 <view v-if="trip" class="screen packing-screen">
  <view class="prep-header"><view><view class="title">出行准备</view><view class="subtitle">{{trip.title}}</view></view><button v-if="!editing&&templateIndex<0" class="add-circle" :disabled="locked" aria-label="添加物品" @click="open()">＋</button></view>
- <view v-if="state.readOnly" class="notice">当前为只读缓存，重新连接后可修改清单。</view>
+ <view v-if="!canEditTrip(id)" class="notice">行李清单仅向获准编辑的成员显示。</view>
  <view v-if="!editing&&templateIndex<0" class="compact-progress"><view class="row"><text>{{packed}} / {{all.length}} 项已准备</text><text>{{percent}}%</text></view><view class="progress-track"><view class="progress-fill" :style="{width:percent+'%'}"/></view></view>
  <view v-if="editing" class="card section">
   <view class="row"><view class="section-title">{{form.id?'编辑物品':'添加物品'}}</view><button class="text-button small" :disabled="state.busy" @click="editing=false">取消</button></view>

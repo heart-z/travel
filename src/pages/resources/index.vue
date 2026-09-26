@@ -2,7 +2,7 @@
 import TripNav from '../../components/TripNav.vue';
 import { computed, reactive, ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
-import { initialize, findTrip, saveTrip, state, notify, confirm, message, go } from '../../state';
+import { initialize, findTrip, saveTrip, state, notify, confirm, message, go, canEditTrip, sharedAccess } from '../../state';
 import { clone, uid, type Stay, type Transport, type TransportMode, type Place } from '../../domain/types';
 import { saveStay, saveTransport } from '../../domain/resources';
 import { parseCents, yuan } from '../../domain/money';
@@ -14,7 +14,7 @@ const id=ref(''), date=ref(''), tab=ref<'stay'|'transport'>('stay'), editing=ref
 const trip=computed(()=>findTrip(id.value));
 const dates=computed(()=>trip.value?dateRange(trip.value.startDate,trip.value.endDate):[]);
 const dateIndex=(value:string)=>Math.max(0,dates.value.indexOf(value));
-const locked=computed(()=>saving.value||state.busy||state.readOnly||!state.ready);
+const locked=computed(()=>saving.value||state.busy||!canEditTrip(id.value)||!state.ready);
 const stays=computed(()=>[...(trip.value?.stays||[])].sort((a,b)=>a.checkIn.localeCompare(b.checkIn)));
 const dayOnly=ref(false);
 const visibleStays=computed(()=>stays.value.filter(s=>!dayOnly.value||(s.checkIn<=date.value&&date.value<s.checkOut)));
@@ -73,14 +73,14 @@ async function save(){
 }
 async function remove(kind:'stay'|'transport',resourceId:string){
   if(locked.value||!trip.value)return;saving.value=true;
-  try{if(!await confirm('删除这条记录？','只删除本条住宿或交通记录，行程事项与账本保留。'))return;if(state.readOnly||!state.ready||!trip.value)return;const next=clone(trip.value);next.revision++;if(kind==='stay')next.stays=next.stays?.filter(s=>s.id!==resourceId);else next.transports=next.transports?.filter(t=>t.id!==resourceId);await saveTrip(next);notify('已删除');}catch(e){notify(e);}finally{saving.value=false;}
+  try{if(!await confirm('删除这条记录？','只删除本条住宿或交通记录，行程事项与账本保留。'))return;if(!canEditTrip(id.value)||!state.ready||!trip.value)return;const next=clone(trip.value);next.revision++;if(kind==='stay')next.stays=next.stays?.filter(s=>s.id!==resourceId);else next.transports=next.transports?.filter(t=>t.id!==resourceId);await saveTrip(next);notify('已删除');}catch(e){notify(e);}finally{saving.value=false;}
 }
 </script>
 
 <template>
 <view class="screen resources" v-if="trip">
   <text class="eyebrow">TRAVEL BOOKINGS</text><view class="title">住宿与交通</view><view class="subtitle">{{trip.title}} · {{trip.startDate.slice(5)}} — {{trip.endDate.slice(5)}}</view>
-  <view v-if="state.readOnly" class="notice">当前为只读缓存，重新连接后可整理住宿与交通。</view>
+  <view v-if="!canEditTrip(id)" class="notice">当前只能查看住宿与交通；获得编辑权限后即可一起整理。</view>
   <view v-if="!editing" class="resource-tabs"><button :class="{selected:tab==='stay'}" :disabled="saving" @click="switchTab('stay')">住宿 · {{stays.length}}</button><button :class="{selected:tab==='transport'}" :disabled="saving" @click="switchTab('transport')">交通 / 过夜 · {{transports.length+trainNights.length}}</button></view>
 
   <view v-if="editing" class="editor section">
@@ -122,12 +122,12 @@ async function remove(kind:'stay'|'transport',resourceId:string){
        <view v-if="s.address||s.place" class="detail">{{s.address||s.place?.address||s.place?.name}}</view>
        <view v-if="s.place&&s.address&&s.place.name!==s.name" class="detail">地图位置 · {{s.place.name}}</view>
        <view v-if="s.bookingNo&&expanded.includes(s.id)" class="detail">预订编号 · {{s.bookingNo}}</view><view v-if="s.phone&&expanded.includes(s.id)" class="detail">联系电话 · {{s.phone}}</view><view v-if="s.note&&expanded.includes(s.id)" class="detail note-text">{{s.note}}</view>
-       <view class="card-bottom"><text class="amount">{{s.amount?'¥'+yuan(s.amount):'金额待补充'}}</text><view class="card-actions"><button @click="toggleStay(s.id)">{{expanded.includes(s.id)?'收起':'详情'}}</button><button v-if="s.place" @click="navigate(s.place)">导航 ↗</button><!-- #ifdef MP-WEIXIN --><button v-if="s.kind!=='train'&&!s.place&&!state.readOnly" :disabled="locked" @click="chooseHotelLocation(s)">定位</button><!-- #endif --><button v-if="!state.readOnly" :disabled="locked" @click="openStay(s)">编辑</button><button v-if="!state.readOnly" class="remove" :disabled="locked" @click="remove('stay',s.id)">删除</button></view></view>
+       <view class="card-bottom"><text v-if="sharedAccess[id]?.role!=='viewer'" class="amount">{{s.amount?'¥'+yuan(s.amount):'金额待补充'}}</text><view class="card-actions"><button @click="toggleStay(s.id)">{{expanded.includes(s.id)?'收起':'详情'}}</button><button v-if="s.place" @click="navigate(s.place)">导航 ↗</button><!-- #ifdef MP-WEIXIN --><button v-if="s.kind!=='train'&&!s.place&&canEditTrip(id)" :disabled="locked" @click="chooseHotelLocation(s)">定位</button><!-- #endif --><button v-if="canEditTrip(id)" :disabled="locked" @click="openStay(s)">编辑</button><button v-if="canEditTrip(id)" class="remove" :disabled="locked" @click="remove('stay',s.id)">删除</button></view></view>
       </view>
       <view v-if="!visibleStays.length" class="empty-resource"><text class="empty-icon">☾</text><view>给旅途留一个安心的落脚点</view><text class="detail">添加一次住宿，入住的每一晚都会出现在行程里。</text></view>
     </template>
     <template v-else>
-      <view v-for="t in transports" :key="t.id" class="resource-card"><view class="card-top"><text class="resource-name">{{t.name}}</text><text class="status">{{modeLabel(t.mode)}}</text></view><view class="route-stop"><text class="route-dot"/><view><text class="stop-name">{{t.fromName}}</text><view class="detail">{{stamp(t.departure)}} 出发</view></view></view><view class="route-stop"><text class="route-dot arrival"/><view><text class="stop-name">{{t.toName}}</text><view class="detail">{{stamp(t.arrival)}} 到达<text v-if="t.departure.slice(0,10)!==t.arrival.slice(0,10)" class="overnight">跨日</text></view></view></view><view v-if="t.bookingNo" class="detail">预订编号 · {{t.bookingNo}}</view><view v-if="t.note" class="detail note-text">{{t.note}}</view><view class="card-bottom"><text class="detail">北京时间</text><view class="card-actions" v-if="!state.readOnly"><button :disabled="locked" @click="openTransport(t)">编辑</button><button class="remove" :disabled="locked" @click="remove('transport',t.id)">删除</button></view></view></view>
+      <view v-for="t in transports" :key="t.id" class="resource-card"><view class="card-top"><text class="resource-name">{{t.name}}</text><text class="status">{{modeLabel(t.mode)}}</text></view><view class="route-stop"><text class="route-dot"/><view><text class="stop-name">{{t.fromName}}</text><view class="detail">{{stamp(t.departure)}} 出发</view></view></view><view class="route-stop"><text class="route-dot arrival"/><view><text class="stop-name">{{t.toName}}</text><view class="detail">{{stamp(t.arrival)}} 到达<text v-if="t.departure.slice(0,10)!==t.arrival.slice(0,10)" class="overnight">跨日</text></view></view></view><view v-if="t.bookingNo" class="detail">预订编号 · {{t.bookingNo}}</view><view v-if="t.note" class="detail note-text">{{t.note}}</view><view class="card-bottom"><text class="detail">北京时间</text><view class="card-actions" v-if="canEditTrip(id)"><button :disabled="locked" @click="openTransport(t)">编辑</button><button class="remove" :disabled="locked" @click="remove('transport',t.id)">删除</button></view></view></view>
       <view v-for="night in trainNights" :key="night.id" class="resource-card"><view class="card-top"><text class="resource-name">{{night.name}}</text><text class="status">车上过夜</text></view><view class="date-line">{{night.checkIn}} → {{night.checkOut}}</view><view class="detail">{{night.note}}</view><view class="notice">这是过夜安排，尚不是车票记录。拿到票后可添加准确车次与出发、到达时间。</view></view><view v-if="!transports.length&&!trainNights.length" class="empty-resource"><text class="empty-icon">↗</text><view>把出发和到达，一起记下来</view><text class="detail">飞机、夜火车或城市间的移动，都可以在这里安排。</text></view>
     </template>
     <view class="notice">记录覆盖整段旅行。已有行程里的住宿事项会继续保留，可按需要自行整理。</view>

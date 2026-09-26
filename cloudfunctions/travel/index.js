@@ -1,6 +1,8 @@
 const cloud=require('wx-server-sdk');
 const {requestMap}=require('./tencent');
 const {createHandler}=require('./handler');
+const {createSharedHandler}=require('./sharing');
+const {createSharingStore}=require('./sharing-store');
 cloud.init({env:cloud.DYNAMIC_CURRENT_ENV});
 // wx-server-sdk 3.0.1 returns data:null only for a missing document with this
 // option. Permission, transport and missing-collection errors still propagate.
@@ -16,4 +18,5 @@ const handler=createHandler({
   }),
   map:(path,params)=>requestMap(path,params,process.env.TENCENT_MAP_KEY,process.env.TENCENT_MAP_SK)
 });
-exports.main=async event=>{try{return {ok:true,data:await handler(event,cloud.getWXContext())};}catch(e){return {ok:false,error:e.message||'服务异常'};}};
+const shared=createSharedHandler(createSharingStore(db,owner=>read(db,owner)));
+exports.main=async event=>{try{const context=cloud.getWXContext();return {ok:true,data:event.action?.endsWith('Invite')||['listShared','members','requestEdit','approveEdit','saveShared'].includes(event.action)?await shared(event.action,event,context.OPENID):await handler(event,context)};}catch(e){return {ok:false,error:e.message||'服务异常'};}};

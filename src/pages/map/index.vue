@@ -2,7 +2,7 @@
 import TripNav from '../../components/TripNav.vue';
 import {computed,ref,watch,nextTick} from 'vue';
 import {onLoad} from '@dcloudio/uni-app';
-import {findTrip,initialize,state,saveTrip,notify,confirm,go} from '../../state';
+import {findTrip,initialize,state,saveTrip,notify,confirm,go,canEditTrip} from '../../state';
 import {dateRange} from '../../domain/dates';
 import {searchCity,saveDayCity,staysOn} from '../../domain/resources';
 import {uid,type Place} from '../../domain/types';
@@ -33,7 +33,7 @@ const items=computed(()=>trip.value?.items.filter(i=>allDays.value||i.date===dat
 const mapStays=computed(()=>trip.value?(allDays.value?trip.value.stays||[]:staysOn(trip.value,date.value)).filter(stay=>stay.kind!=='train'&&stay.place):[]);
 const current=computed(()=>items.value.find(i=>i.id===selected.value));
 const located=computed(()=>items.value.filter(i=>i.place).length+mapStays.value.length);
-const locked=computed(()=>state.readOnly||state.busy||!state.ready);
+const locked=computed(()=>!canEditTrip(id.value)||state.busy||!state.ready);
 const filter=ref<'all'|LocationState>('all');
 const pending=computed(()=>items.value.filter(i=>locationState(i)==='pending').length);
 const visibleItems=computed(()=>items.value.filter(i=>filter.value==='all'||locationState(i)===filter.value));
@@ -46,7 +46,7 @@ watch(()=>[current.value?.date||date.value,trip.value?.dayCities,trip.value?.cit
 watch([query,city],()=>{lookup++;searching.value=false;choices.value=[];candidate.value=undefined;searched.value=false;});
 watch(()=>JSON.stringify([items.value.map(i=>[i.id,i.place,i.travelMode]),mode.value,allDays.value,trip.value?.transports]),()=>{void loadRoutes();});
 async function loadRoutes(){const token=++request;legs.value=[];error.value='';if(allDays.value)return;try{const r=await routes(items.value,mode.value,trip.value?.transports);if(token===request)legs.value=r;}catch(e){if(token===request)error.value=e instanceof Error?e.message:'路线不可用';}}
-async function rememberCity(){if(!trip.value||state.readOnly||state.busy)return;try{await saveTrip(saveDayCity(trip.value,current.value?.date||date.value,city.value));notify('已保存当日搜索城市');}catch(e){notify(e);}}
+async function rememberCity(){if(!trip.value||!canEditTrip(id.value)||state.busy)return;try{await saveTrip(saveDayCity(trip.value,current.value?.date||date.value,city.value));notify('已保存当日搜索城市');}catch(e){notify(e);}}
 async function search(){if(!current.value)return;const token=++lookup;searching.value=true;searched.value=false;choices.value=[];candidate.value=undefined;error.value='';try{
   let result:Place[]=[];
   if(cloudEnabled())result=await searchPlaces(query.value,city.value.trim());
@@ -90,8 +90,8 @@ function cancelBinding(){uni.navigateBack();}
 <picker :range="items.map((i,n)=>(n+1)+'. '+i.name+(' · '+locationLabels[locationState(i)]))" :value="Math.max(0,items.findIndex(i=>i.id===selected))" @change="selected=items[Number($event.detail.value)]?.id||''"><view class="field field-text">{{current?current.name:'选择要定位的计划'}} ▾</view></picker>
 <view v-if="current" id="location-detail" class="card section location-detail"><view class="row"><view class="section-title">{{current.name}}</view><text class="badge">{{locationLabels[locationState(current)]}}</text></view><view class="subtitle section">{{current.date}} · {{current.place?.address||'尚未关联位置'}}</view><view class="actions"><button v-if="current.place" class="primary" @click="navigate(current.place)">打开导航 ↗</button><button class="secondary" @click="copyPlace">复制地点</button></view>
 <view v-if="current.place&&current.locationStatus!=='confirmed'" class="notice">已有坐标不一定是停车场或景区入口。请在导航中核实后，再标记入口已确认。</view>
-<view v-if="!state.readOnly" class="pill-row section"><button v-if="current.place" class="pill" :disabled="locked" @click="updateLocation(current.locationStatus==='confirmed'?'reset':'confirm')">{{current.locationStatus==='confirmed'?'撤销入口确认':'已核对入口'}}</button><button v-if="!current.place" class="pill" :disabled="locked" @click="updateLocation(current.locationStatus==='not-needed'?'reset':'skip')">{{current.locationStatus==='not-needed'?'改为待补位置':'无需定位'}}</button><button v-if="current.place" class="text-button small" :disabled="locked" @click="updateLocation('remove')">移除位置</button></view>
-<template v-if="!state.readOnly"><template v-if="cloudEnabled()"><text class="label">搜索城市 / 区域</text><input class="field" v-model="city" maxlength="80" placeholder="例如：哈尔滨"/><button class="text-button small" :disabled="state.busy||!city.trim()" @click="rememberCity">记住当日城市</button><text class="label">地点名称</text><input class="field" v-model="query" placeholder="例如：沈阳桃仙国际机场"/><view class="actions"><button class="secondary small" :disabled="searching||!query.trim()" @click="search">{{searching?'正在查询…':'搜索地点'}}</button></view></template><view class="actions"><button class="secondary small" :disabled="locked" @click="picking=!picking">{{picking?'停止地图选点':'在地图上选点'}}</button></view>
+<view v-if="canEditTrip(id)" class="pill-row section"><button v-if="current.place" class="pill" :disabled="locked" @click="updateLocation(current.locationStatus==='confirmed'?'reset':'confirm')">{{current.locationStatus==='confirmed'?'撤销入口确认':'已核对入口'}}</button><button v-if="!current.place" class="pill" :disabled="locked" @click="updateLocation(current.locationStatus==='not-needed'?'reset':'skip')">{{current.locationStatus==='not-needed'?'改为待补位置':'无需定位'}}</button><button v-if="current.place" class="text-button small" :disabled="locked" @click="updateLocation('remove')">移除位置</button></view>
+<template v-if="canEditTrip(id)"><template v-if="cloudEnabled()"><text class="label">搜索城市 / 区域</text><input class="field" v-model="city" maxlength="80" placeholder="例如：哈尔滨"/><button class="text-button small" :disabled="state.busy||!city.trim()" @click="rememberCity">记住当日城市</button><text class="label">地点名称</text><input class="field" v-model="query" placeholder="例如：沈阳桃仙国际机场"/><view class="actions"><button class="secondary small" :disabled="searching||!query.trim()" @click="search">{{searching?'正在查询…':'搜索地点'}}</button></view></template><view class="actions"><button class="secondary small" :disabled="locked" @click="picking=!picking">{{picking?'停止地图选点':'在地图上选点'}}</button></view>
 <view v-if="searched&&!choices.length" class="notice">没有找到候选，请尝试更明确的名称，或在地图上选点。</view>
 <view v-for="place in choices" :key="place.id" class="candidate" :class="{chosen:candidate?.id===place.id}" @click="candidate=place"><view>{{place.name}}</view><view class="subtitle">{{place.address}}</view></view>
 <view v-if="candidate" class="notice"><view>待保存：{{candidate.name}}</view><view>{{candidate.address}}</view><button class="primary small section" :disabled="state.busy||!state.ready" @click="saveLocation">保存到这项计划</button></view></template></view>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {computed,ref,watch,nextTick,onMounted,onBeforeUnmount,getCurrentInstance} from 'vue';
-import {onLoad,onShow} from '@dcloudio/uni-app';
-import {state,initialize,findTrip,go,saveTrip,notify,confirm,reload} from '../../state';
+import {onLoad,onShow,onHide} from '@dcloudio/uni-app';
+import {state,initialize,findTrip,go,saveTrip,notify,confirm,reload,canEditTrip,refreshSharedTrips,sharedAccess} from '../../state';
 import {dateRange,today} from '../../domain/dates';
 import {tripStatus} from '../../domain/trip-status';
 import {formatTime} from '../../domain/schedule';
@@ -102,8 +102,12 @@ let dateRefreshTimer:ReturnType<typeof setTimeout>|undefined;
 function refreshDate(){currentDate.value=today();const now=new Date();const midnight=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);dateRefreshTimer=setTimeout(refreshDate,midnight.getTime()-now.getTime()+1000);}
 onMounted(refreshDate);
 onBeforeUnmount(()=>{if(dateRefreshTimer)clearTimeout(dateRefreshTimer);});
-onShow(()=>{currentDate.value=today();});
-const locked=computed(()=>state.busy||state.readOnly||!state.ready);
+let sharedPoll:ReturnType<typeof setInterval>|undefined;
+function stopSharedPoll(){if(sharedPoll){clearInterval(sharedPoll);sharedPoll=undefined;}}
+onShow(()=>{currentDate.value=today();if(sharedAccess[id.value])void refreshSharedTrips().catch(()=>{});stopSharedPoll();sharedPoll=setInterval(()=>{if(sharedAccess[id.value])void refreshSharedTrips().catch(()=>{});},30000);});
+onHide(stopSharedPoll);
+onBeforeUnmount(stopSharedPoll);
+const locked=computed(()=>state.busy||!canEditTrip(id.value)||!state.ready);
 const dayAnchor=computed(()=>'day-'+day.value);
 const days=computed(()=>trip.value?dateRange(trip.value.startDate,trip.value.endDate):[]);
 const items=computed(()=>trip.value?.items.filter(i=>i.date===day.value).sort((a,b)=>a.order-b.order)||[]);
@@ -176,7 +180,7 @@ function arrivalText(t:Transport){const date=t.arrival.slice(0,10);const dates=d
 </script>
 <template>
 <view v-if="trip" class="planner" :class="['layout-'+layout,{'no-map':!mapAvailable}]">
- <view class="planner-header"><view class="planner-heading"><view class="planner-title">{{trip.title}}</view><view class="planner-meta">{{trip.startDate.slice(5).replace('-','/')}} — {{trip.endDate.slice(5).replace('-','/')}} · {{days.length}} 天</view></view><button class="header-action" :disabled="locked" aria-label="编辑旅行" @click="go('trip-edit',{id})"><image src="/static/ui/edit.svg"/></button></view>
+ <view class="planner-header"><view class="planner-heading"><view class="planner-title">{{trip.title}}</view><view class="planner-meta">{{trip.startDate.slice(5).replace('-','/')}} — {{trip.endDate.slice(5).replace('-','/')}} · {{days.length}} 天</view></view><button class="header-action header-share" aria-label="分享旅行" @click="go('share',{id})">↗</button><button v-if="canEditTrip(id)" class="header-action" :disabled="locked" aria-label="编辑旅行" @click="go('trip-edit',{id})"><image src="/static/ui/edit.svg"/></button></view>
  <view v-if="state.error" class="planner-warning" @click="reload">{{state.error}} · 点击重试</view>
  <view v-if="mapAvailable" class="planner-map" :style="mapStyle" ><RouteMap embedded :items="mapItems" :legs="overview?[]:visibleLegs" :stays="mapStays" :selected="selected" :selection-token="selectionToken" @select="selectStop" @select-stay="resources('stay',$event)"/></view>
  <view class="planner-sheet" :style="sheetStyle">
